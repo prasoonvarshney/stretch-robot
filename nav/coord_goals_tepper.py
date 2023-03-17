@@ -1,3 +1,5 @@
+# Base code from: http://edu.gaitech.hk/turtlebot/map-navigation.html
+
 import time
 import rospy
 import actionlib
