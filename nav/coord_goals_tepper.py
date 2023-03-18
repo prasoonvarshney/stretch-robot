@@ -42,6 +42,9 @@ class map_navigation():
             return START_2
 
     def __init__(self, goal):
+        # initialize
+        rospy.init_node('map_navigation', anonymous=False)
+        
         # declare the coordinates of interest
         if goal is None:
             choice = self.choose()
@@ -54,8 +57,6 @@ class map_navigation():
         
         self.xGoal, self.yGoal = self.goal_position['x'], self.goal_position['y']
 
-        # initialize
-        rospy.init_node('map_navigation', anonymous=False)
         self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
         
 
@@ -116,7 +117,7 @@ if __name__ == '__main__':
     
     try:
         rospy.loginfo("You have reached the destination")
-        map_navigation(args['goal'])
+        map_navigation(args.goal)
         rospy.spin()
 
     except rospy.ROSInterruptException:
