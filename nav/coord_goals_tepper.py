@@ -37,11 +37,11 @@ class map_navigation():
         rospy.init_node('map_navigation', anonymous=False)
         choice = self.choose()
 
-        if (choice == 0):
+        if (choice == '0'):
             self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
-        elif (choice == 1):
+        elif (choice == '1'):
             self.goalReached = self.moveToGoal(self.xCounter1, self.yCounter1)
-        elif (choice == 2):
+        elif (choice == '2'):
             self.goalReached = self.moveToGoal(self.xCounter2, self.yCounter2)
 
         if (choice!='q'):
@@ -53,11 +53,11 @@ class map_navigation():
 
         while choice != 'q':
             choice = self.choose()
-            if (choice == 0):
+            if (choice == '0'):
                 self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
-            elif (choice == 1):
+            elif (choice == '1'):
                 self.goalReached = self.moveToGoal(self.xCounter1, self.yCounter1)
-            elif (choice == 2):
+            elif (choice == '2'):
                 self.goalReached = self.moveToGoal(self.xCounter2, self.yCounter2)
 
             if (choice!='q'):
