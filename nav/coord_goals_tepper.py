@@ -24,7 +24,7 @@ class map_navigation():
         
         rospy.loginfo("|-------------------------------|")
         rospy.loginfo("|PRESS A KEY:")
-        rospy.loginfo("|'0': Goal ")
+        rospy.loginfo("|'0': Goal (Couch) ")
         rospy.loginfo("|'1': Countertop 1 ")
         rospy.loginfo("|'2': Countertop 2 ")
         rospy.loginfo("|'q': Quit ")
@@ -55,7 +55,7 @@ class map_navigation():
 
         self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
         
-        if (choice!='q'):
+        if (choice != 'q'):
             if (self.goalReached):
                 rospy.loginfo("Congratulations!")
             else:
@@ -71,7 +71,7 @@ class map_navigation():
 
             self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
             
-            if (choice!='q'):
+            if (choice != 'q'):
                 if (self.goalReached):
                     rospy.loginfo("Congratulations!")
                 else:
