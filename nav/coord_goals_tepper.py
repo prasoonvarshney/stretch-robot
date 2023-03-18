@@ -1,6 +1,9 @@
 # Base code from: http://edu.gaitech.hk/turtlebot/map-navigation.html
 
+import json
 import time
+import argparse
+
 import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -8,6 +11,11 @@ from math import radians, degrees
 from actionlib_msgs.msg import *
 from geometry_msgs.msg import Point
 
+
+COORDS = json.load(open('coordinates.json', 'r'))
+GOAL = COORDS['couch']
+START_1 = COORDS['counter_sink']
+START_2 = COORDS['counter_couch']
 
 class map_navigation():
 
@@ -24,27 +32,32 @@ class map_navigation():
         rospy.loginfo("|WHERE TO GO?")
         choice = input()
         return choice
+    
+    def map_choice_to_coords(self, choice):
+        if choice == '0':
+            return GOAL
+        elif choice == '1':
+            return START_1
+        elif choice == '2':
+            return START_2
 
-    def __init__(self):
+    def __init__(self, goal):
         # declare the coordinates of interest
-        self.xGoal = 4.97
-        self.yGoal = -5.07
-        self.xCounter1 = 6.86
-        self.yCounter1 = -3.08
-        self.xCounter2 = 3.64
-        self.yCounter2 = -4.10
-        self.goalReached = False
+        if goal is None:
+            choice = self.choose()
+        else:
+            choice = goal
+            
+        goal_coords = self.map_choice_to_coords(choice)
+        self.goal_position = goal_coords['position']
+        self.goal_orientation = goal_coords['orientation']
+        
+        self.xGoal, self.yGoal = self.goal_position['x'], self.goal_position['y']
 
         # initialize
         rospy.init_node('map_navigation', anonymous=False)
-        choice = self.choose()
-
-        if (choice == 0):
-            self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
-        elif (choice == 1):
-            self.goalReached = self.moveToGoal(self.xCounter1, self.yCounter1)
-        elif (choice == 2):
-            self.goalReached = self.moveToGoal(self.xCounter2, self.yCounter2)
+        self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
+        
 
         if (choice!='q'):
             if (self.goalReached):
@@ -52,23 +65,6 @@ class map_navigation():
                 #rospy.spin()
             else:
                 rospy.loginfo("Hard Luck!")
-
-        while choice != 'q':
-            choice = self.choose()
-            if (choice == 0):
-                self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
-            elif (choice == 1):
-                self.goalReached = self.moveToGoal(self.xCounter1, self.yCounter1)
-            elif (choice == 2):
-                self.goalReached = self.moveToGoal(self.xCounter2, self.yCounter2)
-
-            if (choice!='q'):
-                if (self.goalReached):
-                    rospy.loginfo("Congratulations!")
-                    #rospy.spin()
-                else:
-                    rospy.loginfo("Hard Luck!")
-
 
     def shutdown(self):
         # stop turtlebot
@@ -94,10 +90,10 @@ class map_navigation():
         # moving towards the goal*/
 
         goal.target_pose.pose.position =  Point(xGoal,yGoal,0)
-        goal.target_pose.pose.orientation.x = 0.0
-        goal.target_pose.pose.orientation.y = 0.0
-        goal.target_pose.pose.orientation.z = 0.96
-        goal.target_pose.pose.orientation.w = 0.25
+        goal.target_pose.pose.orientation.x = self.goal_orientation['x']
+        goal.target_pose.pose.orientation.y = self.goal_orientation['y']
+        goal.target_pose.pose.orientation.z = self.goal_orientation['z']
+        goal.target_pose.pose.orientation.w = self.goal_orientation['w']
 
         rospy.loginfo("Sending goal location ...")
         ac.send_goal(goal)
@@ -114,9 +110,13 @@ class map_navigation():
             return False
 
 if __name__ == '__main__':
+    p = argparse.ArgumentParser()
+    p.add_argument('--goal', '-g', type=int, default=None)
+    args = p.parse_args()
+    
     try:
         rospy.loginfo("You have reached the destination")
-        map_navigation()
+        map_navigation(args['goal'])
         rospy.spin()
 
     except rospy.ROSInterruptException:
