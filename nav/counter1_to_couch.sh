@@ -1,4 +1,5 @@
 #!/bin/bash
+# make sure to 1. calibrate 2. run nav stack first
 
 python3 arm_motion.py -loc retracted -int rest  # wherever it starts, retract arm first
 python3 coord_goals_tepper.py -g 1 # go to counter1
