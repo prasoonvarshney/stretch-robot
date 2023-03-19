@@ -1,0 +1,4 @@
+rest position | 16:15:22
+go to counter1 | 16:15:24
+reach for basket | 16:15:35
+grab basket | 16:15:46

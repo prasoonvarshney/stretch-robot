@@ -27,7 +27,7 @@ class MultiPointCommand(hm.HelloNode):
     if location == "retracted":
       joint_lift, wrist_extension = 1.09, 0.0
     elif location == "couch":
-      joint_lift, wrist_extension = 0.7, 0.45
+      joint_lift, wrist_extension = 0.7, 0.5
     elif location == "counter1":
       joint_lift, wrist_extension = 1.09, 0.35
     elif location == "counter2":
