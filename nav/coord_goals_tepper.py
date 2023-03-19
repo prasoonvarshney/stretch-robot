@@ -81,8 +81,6 @@ class map_navigation():
                         rospy.loginfo("Congratulations!")
                     else:
                         rospy.loginfo("Hard Luck!")
-        else:
-            self.shutdown()
 
     def shutdown(self):
         # stop turtlebot
@@ -135,7 +133,7 @@ if __name__ == '__main__':
     try:
         rospy.loginfo("You have reached the destination")
         map_navigation(args.goal)
-        rospy.spin()
+        # rospy.spin()
 
     except rospy.ROSInterruptException:
         rospy.loginfo("map_navigation node terminated.")

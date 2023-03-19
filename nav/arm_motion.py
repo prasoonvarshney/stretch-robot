@@ -25,20 +25,24 @@ class MultiPointCommand(hm.HelloNode):
     joint_lift, wrist_extension, joint_wrist_pitch, gripper_aperture = 1.0, 0.0, -0.8, 0.07
 
     if location == "retracted":
-      joint_lift, wrist_extension = 1.0, 0.0
+      joint_lift, wrist_extension = 1.09, 0.0
     elif location == "couch":
-      joint_lift, wrist_extension = 0.7, 0.4
+      joint_lift, wrist_extension = 0.7, 0.45
     elif location == "counter1":
-      joint_lift, wrist_extension = 1.0, 0.5
+      joint_lift, wrist_extension = 1.09, 0.35
     elif location == "counter2":
-      joint_lift, wrist_extension = 1.0, 0.3
+      joint_lift, wrist_extension = 1.09, 0.3
 
     if interaction == "open":
       joint_wrist_pitch, gripper_aperture = -0.8, 0.07
+    elif interaction == "carry":
+      joint_wrist_pitch, gripper_aperture = 0, -0.12
     elif interaction == "close":
-      joint_wrist_pitch, gripper_aperture = 0.0, -0.12
+      joint_wrist_pitch, gripper_aperture = -0.3, -0.12
     elif interaction == "rest":
       joint_wrist_pitch, gripper_aperture = -1.5, 0
+    elif interaction == "reach":
+      joint_wrist_pitch, gripper_aperture = 0.3, 0.07
     point0.positions = [joint_lift, wrist_extension, joint_wrist_pitch, gripper_aperture]
 
     trajectory_goal = FollowJointTrajectoryGoal()
