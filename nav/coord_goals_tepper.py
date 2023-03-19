@@ -46,7 +46,11 @@ class map_navigation():
         rospy.init_node('map_navigation', anonymous=False)
         
         # declare the coordinates of interest
-        choice = self.choose()
+        if goal is None:
+            choice = self.choose()
+        else:
+            choice = str(goal)
+            
         goal_coords = self.map_choice_to_coords(choice)
         self.goal_position = goal_coords['position']
         self.goal_orientation = goal_coords['orientation']
@@ -61,21 +65,24 @@ class map_navigation():
             else:
                 rospy.loginfo("Hard Luck!")
                 
-        while choice != 'q':
-            choice = self.choose()
-            goal_coords = self.map_choice_to_coords(choice)
-            self.goal_position = goal_coords['position']
-            self.goal_orientation = goal_coords['orientation']
-            
-            self.xGoal, self.yGoal = self.goal_position['x'], self.goal_position['y']
+        if goal is None:
+            while choice != 'q':
+                choice = self.choose()
+                goal_coords = self.map_choice_to_coords(choice)
+                self.goal_position = goal_coords['position']
+                self.goal_orientation = goal_coords['orientation']
+                
+                self.xGoal, self.yGoal = self.goal_position['x'], self.goal_position['y']
 
-            self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
-            
-            if (choice != 'q'):
-                if (self.goalReached):
-                    rospy.loginfo("Congratulations!")
-                else:
-                    rospy.loginfo("Hard Luck!")
+                self.goalReached = self.moveToGoal(self.xGoal, self.yGoal)
+                
+                if (choice != 'q'):
+                    if (self.goalReached):
+                        rospy.loginfo("Congratulations!")
+                    else:
+                        rospy.loginfo("Hard Luck!")
+        else:
+            self.shutdown()
 
     def shutdown(self):
         # stop turtlebot
