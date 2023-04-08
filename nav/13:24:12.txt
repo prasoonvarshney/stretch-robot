@@ -1,0 +1,8 @@
+rest position | 13:24:16
+go to counter1 | 13:24:28
+reach for basket | 13:24:39
+grab basket | 13:24:55
+go to couch | 13:25:10
+place basket | 13:25:20
+rest position | 13:25:26
+go back to counter1 | 13:26:27

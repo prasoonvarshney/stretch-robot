@@ -1,0 +1,2 @@
+rest position | 13:21:56
+go to counter1 | 13:22:58
