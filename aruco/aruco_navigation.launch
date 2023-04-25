@@ -16,7 +16,7 @@
   <include file="$(find stretch_core)/launch/rplidar.launch" />
 
   <!-- REALSENSE D435i -->
-  <include file="$(find stretch_core)/launch/d435i_high_resolution.launch"></include>
+  <include file="$(find stretch_core)/launch/d435i_low_resolution.launch"></include>
 
   <!-- ARUCO MARKER DETECTOR -->
   <rosparam command="load" file="$(find stretch_core)/config/stretch_marker_dict.yaml" />
