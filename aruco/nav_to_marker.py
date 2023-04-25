@@ -9,28 +9,29 @@ import tf2_ros
 import time
 from math import pi, sqrt, atan2
 import json 
-import os
+import datetime
 import sys
 import math
 
 from std_srvs.srv import Trigger
 
 import tf2_geometry_msgs
-from geometry_msgs.msg import TransformStamped, PoseStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped, Point
 from sensor_msgs.msg import JointState
 from control_msgs.msg import FollowJointTrajectoryAction
 from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 from visualization_msgs.msg import MarkerArray
+from actionlib_msgs.msg import *
 
 import actionlib
 from move_base_msgs.msg import MoveBaseGoal, MoveBaseAction
 
 
-ARM_LENGTH = 0.5  # meters?
-OFFSET_LIFT = 0.08
-OFFSET_RADIUS = 0.5
+from constants import *
 
+COORDS = json.load(open('coordinates.json', 'r'))
+GOAL = COORDS['couch_team2']
 
 def get_angles_from_quaternion(quaternion):
     return tf.transformations.euler_from_quaternion(
@@ -41,8 +42,18 @@ def get_angles_from_quaternion(quaternion):
 class ArucoNavigation(hm.HelloNode):
     def __init__(self):
         hm.HelloNode.__init__(self)
+        self.init_translation, self.init_orientation = None, None
         self.base_translation, self.base_orientation = None, None
         self.tag_translation,  self.tag_orientation  = None, None
+        self.start_time = None
+        self.found_basket_time = None
+        self.nav_basket_time = None
+        self.pickup_basket_time = None
+        self.nav_couch_time = None
+        self.place_basket_time = None
+        self.nav_home_time = None
+        self.output_fname = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".txt"
+        self.mode = 'nav_to_aruco'
         self.main()
 
     def find_tag(self, requested_tag):
@@ -105,139 +116,217 @@ class ArucoNavigation(hm.HelloNode):
 
         self.switch_to_navigation_mode()
         return True
+    
+
+    def move_joints(self, pose):
+        print(f"Moving to pose: {pose}")
+        self.move_to_pose(pose, return_before_done=False)
+        time.sleep(2)
+
+    def record_times(self):
+        times = {
+            "start": self.start_time,
+            "found_basket": self.found_basket_time,
+            "nav_basket": self.nav_basket_time,
+            "pickup_basket": self.pickup_basket_time,
+            "nav_couch": self.nav_couch_time,
+            "place_basket": self.place_basket_time,
+            "nav_home": self.nav_home_time,
+        }
+        with open(self.output_fname, 'w') as f:
+            f.write(json.dumps(times, indent=2))
+
 
     def callback(self, goal):
-        self.markers = goal.markers
-        print(f"Goal markers: {goal.markers}")
+        if self.mode == 'nav_to_aruco':
 
-        requested_tag = "basket"
+            if self.start_time is None: 
+                self.start_time = time.time()
 
-        rospy.loginfo(f"LOOKING FOR THIS TAG: {requested_tag}")
+            requested_tag = "basket"
+            rospy.loginfo(f"LOOKING FOR THIS TAG: {requested_tag}")
 
-        # MANIPULATION
-        # self.tag_translation, self.tag_rotation = self.tf_listener.lookupTransform(requested_tag, 'base_link', rospy.Time(0))
-        # rospy.loginfo("Found Requested Tag")
-        
-        # found_tag = True
-
-        # pose = {'wrist_extension': 0.01}
-        # print(f"Trying to move to pose {pose}")
-        # self.move_to_pose(pose)
-
-        # pose = {'joint_wrist_yaw': 3.3}
-        # print(f"Trying to move to pose {pose}")
-        # self.move_to_pose(pose)
-        
-        # pose = {'joint_lift': 0.82}
-        # print(f"Trying to move to pose {pose}")
-        # self.move_to_pose(pose)
-        
-        # print(f"Trying to define target pose")
-        # target_pose = PoseStamped()
-        # target_pose.header.frame_id = 'basket'
-        
-        # target_pose.pose.position.x = self.tag_translation[0]
-        # target_pose.pose.position.y = self.tag_translation[1]
-        # target_pose.pose.position.z = self.tag_translation[2]
-
-        # target_pose.pose.orientation.x = self.tag_rotation[0]
-        # target_pose.pose.orientation.y = self.tag_rotation[1]
-        # target_pose.pose.orientation.z = self.tag_rotation[2]
-        # target_pose.pose.orientation.w = self.tag_rotation[3]
-
-
-        # NAVIGATION
-        self.switch_to_navigation_mode()
-
-        map_goal = MoveBaseGoal()
-        map_goal.target_pose.header.frame_id = 'map'
-        map_goal.target_pose.header.stamp = rospy.Time()
-        try:
-            self.base_translation, self.base_orientation = self.tf_listener.lookupTransform('map', 'base_link', rospy.Time(0))
+            # NAVIGATION
+            self.switch_to_navigation_mode()
+            map_goal = MoveBaseGoal()
+            map_goal.target_pose.header.frame_id = 'map'
+            map_goal.target_pose.header.stamp = rospy.Time.now()
             try:
-                translation, rotation = self.tf_listener.lookupTransform('map', 'basket', rospy.Time(0))
-            except Exception as e:
-                # Couldn't find basket in view, go with last remembered location
-                print("Error looking up map-basket transform... using historically saved coordinates")
-                
-                if self.tag_translation is not None and self.tag_orientation is not None:
-                    translation, rotation = self.tag_translation, self.tag_orientation
-                else:
-                    # Use hardcoded memory
-                    if self.find_tag("basket"):
-                        translation, rotation = self.tf_listener.lookupTransform('map', 'basket', rospy.Time(0))
-                    else: 
-                        translation, rotation = ([6.7, -3.28, 0], [0, 0, 0.96, 0.28])
+                self.base_translation, self.base_orientation = self.tf_listener.lookupTransform('map', 'base_link', rospy.Time(0))
+                if self.init_translation is None:
+                    self.init_translation, self.init_orientation = self.base_translation, self.base_orientation
+                try:
+                    translation, rotation = self.tf_listener.lookupTransform('map', 'basket', rospy.Time(0))
+                    print("Basket is within view!")
+                    if self.found_basket_time is None and self.start_time is not None: 
+                        self.found_basket_time = time.time() - self.start_time
+                        self.record_times()
+                except Exception as e:
+                    # Couldn't find basket in view, go with last remembered location
+                    print("Error looking up map-basket transform... using historically saved coordinates")
+                    
+                    if self.tag_translation is not None and self.tag_orientation is not None:
+                        translation, rotation = self.tag_translation, self.tag_orientation
+                    else:
+                        # Use hardcoded memory
+                        if self.find_tag("basket"):
+                            translation, rotation = self.tf_listener.lookupTransform('map', 'basket', rospy.Time(0))
+                        else: 
+                            translation, rotation = ([3.04, -6.53, 0], [0, 0, -0.24, 0.97])
 
-                
-            self.tag_translation, self.tag_orientation = translation, rotation
-    
-            joint_lift = self.tag_translation[2] + OFFSET_LIFT
-            pose = {'joint_lift': joint_lift}
-            print(f"Lifting arm {pose}")
-            self.move_to_pose(pose)
-
-            print(f"Trying to define map_goal")
-
-            rospy.loginfo(f"Base wrt Map: {self.base_translation}")
-            rospy.loginfo(f"Basket wrt Map: {self.tag_translation}")
-            rospy.loginfo(f"Base Orientation: {self.base_orientation}, as angles: {get_angles_from_quaternion(self.base_orientation)}")
-            rospy.loginfo(f"Basket Orientation: {self.tag_orientation}, as angles: {get_angles_from_quaternion(self.tag_orientation)}")
-
-            length = math.sqrt((self.tag_translation[0] - self.base_translation[0])**2 + (self.tag_translation[1] - self.base_translation[1] - self.base_translation[1])**2)
-            if length > ARM_LENGTH:
-                multiplicative_ratio = (length - ARM_LENGTH) / length
-                x = self.base_translation[0] + multiplicative_ratio * (self.tag_translation[0] - self.base_translation[0])
-                y = self.base_translation[1] + multiplicative_ratio * (self.tag_translation[1] - self.base_translation[1])
-            else: 
-                x = self.base_translation[0]
-                y = self.base_translation[1]
-            
-            eul = get_angles_from_quaternion(self.tag_orientation)
-            angle_z = eul[2]
-            quat = tf.transformations.quaternion_from_euler(0.0, 0.0, angle_z)
-    
-            map_goal.target_pose.pose.position.x = x
-            map_goal.target_pose.pose.position.y = y
-            map_goal.target_pose.pose.position.z = 0.0
-            map_goal.target_pose.pose.orientation.x = quat[0]
-            map_goal.target_pose.pose.orientation.y = quat[1]
-            map_goal.target_pose.pose.orientation.z = quat[2]
-            map_goal.target_pose.pose.orientation.w = quat[3]
-    
-            rospy.loginfo(f"Nav goal, approach 1: {[x, y, math.degrees(angle_z)]}")
-
-
-            angle_z_tag_normal = (angle_z + 3*pi/2 + pi) % (2*pi) - pi  # keep in the range [-pi,pi]
-            angle_z_base_direction = (angle_z + pi + pi) % (2*pi) - pi  # keep in the range [-pi,pi]
-            rospy.loginfo(f"angle_z_tag_normal: {angle_z_tag_normal} ({math.degrees(angle_z_tag_normal)})")
-            rospy.loginfo(f"angle_z_base_direction: {angle_z_base_direction} ({math.degrees(angle_z_base_direction)})")
-
-
-            quat = tf.transformations.quaternion_from_euler(0.0, 0.0, angle_z_base_direction)
-            
-            goal_x = self.tag_translation[0] + OFFSET_RADIUS * math.cos(angle_z_tag_normal)
-            goal_y = self.tag_translation[1] + OFFSET_RADIUS * math.sin(angle_z_tag_normal)
-            map_goal.target_pose.pose.position.x = goal_x
-            map_goal.target_pose.pose.position.y = goal_y
-            map_goal.target_pose.pose.position.z = 0.0
-            map_goal.target_pose.pose.orientation.x = quat[0]
-            map_goal.target_pose.pose.orientation.y = quat[1]
-            map_goal.target_pose.pose.orientation.z = quat[2]
-            map_goal.target_pose.pose.orientation.w = quat[3]
-            rospy.loginfo(f"Nav goal, approach 2: {[self.tag_translation[0] + OFFSET_RADIUS * math.cos(angle_z_tag_normal), self.tag_translation[1] + OFFSET_RADIUS * math.sin(angle_z_tag_normal), math.degrees(angle_z_base_direction)]}")
-
-    
-            rospy.loginfo(f"Sending navigation map_goal {map_goal.target_pose.pose}!")
-            self.client.send_goal_and_wait(map_goal)
-            rospy.loginfo("DONE!")
-            
-            time.sleep(10)
-
-        except Exception as e:
-            rospy.logerr(f"Error sending navigation map_goal {e}")
-            time.sleep(10)
+                    
+                self.tag_translation, self.tag_orientation = translation, rotation
         
+                joint_lift = self.tag_translation[2] + OFFSET_LIFT
+                pose = {'joint_lift': joint_lift}
+                print(f"Lifting arm {pose}")
+                self.move_to_pose(pose)
+
+                # rospy.loginfo(f"Base wrt Map: {self.base_translation}")
+                # rospy.loginfo(f"Basket wrt Map: {self.tag_translation}")
+                # rospy.loginfo(f"Base Orientation: {self.base_orientation}, as angles: {get_angles_from_quaternion(self.base_orientation)}")
+                # rospy.loginfo(f"Basket Orientation: {self.tag_orientation}, as angles: {get_angles_from_quaternion(self.tag_orientation)}")
+                
+                eul = get_angles_from_quaternion(self.tag_orientation)
+                angle_z = eul[2]
+                quat = tf.transformations.quaternion_from_euler(0.0, 0.0, angle_z)
+
+                angle_z_tag_normal = (angle_z + 3*pi/2 + pi) % (2*pi) - pi  # keep in the range [-pi,pi]
+                angle_z_base_direction = (angle_z + pi + pi) % (2*pi) - pi  # keep in the range [-pi,pi]
+                rospy.loginfo(f"angle_z_tag_normal: {angle_z_tag_normal} ({math.degrees(angle_z_tag_normal)})")
+                rospy.loginfo(f"angle_z_base_direction: {angle_z_base_direction} ({math.degrees(angle_z_base_direction)})")
+
+                quat = tf.transformations.quaternion_from_euler(0.0, 0.0, angle_z_base_direction)
+                
+                goal_x = self.tag_translation[0] + OFFSET_RADIUS * math.cos(angle_z_tag_normal) - 0.08 * math.cos(angle_z_base_direction)
+                goal_y = self.tag_translation[1] + OFFSET_RADIUS * math.sin(angle_z_tag_normal) - 0.08 * math.sin(angle_z_base_direction)
+
+                map_goal.target_pose.pose.position.x = round(goal_x, 2)
+                map_goal.target_pose.pose.position.y = round(goal_y, 2)
+                map_goal.target_pose.pose.position.z = 0.0
+                map_goal.target_pose.pose.orientation.x = round(quat[0], 2)
+                map_goal.target_pose.pose.orientation.y = round(quat[1], 2)
+                map_goal.target_pose.pose.orientation.z = round(quat[2], 2)
+                map_goal.target_pose.pose.orientation.w = round(quat[3], 2)
+                rospy.loginfo(f"Nav goal, approach 2: {[map_goal.target_pose.pose.position.x, map_goal.target_pose.pose.position.y, math.degrees(get_angles_from_quaternion(quat)[2])]}")
+
+                rospy.loginfo(f"Sending navigation map_goal {map_goal.target_pose.pose}!")
+                goal_status = self.client.send_goal_and_wait(map_goal, execute_timeout=rospy.Duration(60))
+
+                if goal_status == GoalStatus.SUCCEEDED:    
+                    rospy.loginfo("DONE navigating to basket!")
+                    if self.nav_basket_time is None: 
+                        self.nav_basket_time = time.time() - self.start_time
+                    self.mode = 'pick_up'
+                else:
+                    time.sleep(30)
+
+            except Exception as e:
+                rospy.logerr(f"Error sending navigation map_goal {e}")
+                time.sleep(10)
+            self.record_times()
+
+        elif self.mode == 'pick_up':
+            # wrist up
+            self.move_joints({'joint_wrist_pitch': WRIST_PITCH_UP})
+
+            # open gripper
+            self.move_joints({"gripper_aperture": GRIPPER_APERTURE_OPEN})
+
+            # extend arm
+            self.move_joints({"wrist_extension": WRIST_EXTENSTION_REACH})
+
+            # wrist down
+            self.move_joints({'joint_wrist_pitch': WRIST_PITCH_DOWN})
+
+            # close gripper 
+            self.move_joints({"gripper_aperture": GRIPPER_APERTURE_CLOSED})
+
+            # wrist straight 
+            self.move_joints({'joint_wrist_pitch': WRIST_PITCH_STRAIGHT})
+
+            # joint lift to 1.09
+            self.move_joints({'joint_lift': MAX_LIFT})
+
+            # retract arm
+            self.move_joints({'wrist_extension': WRIST_EXTENSTION_RETRACT})
+
+            if self.pickup_basket_time is None: 
+                self.pickup_basket_time = time.time() - self.start_time
+
+            self.mode = 'deliver'
+            self.record_times()
+
+        elif self.mode == 'deliver':
+
+            delivery_goal = MoveBaseGoal()
+            delivery_goal.target_pose.header.frame_id = 'map'
+            delivery_goal.target_pose.header.stamp = rospy.Time.now()
+            
+            delivery_goal.target_pose.pose.position = Point(GOAL['position']['x'], GOAL['position']['y'], 0)
+            delivery_goal.target_pose.pose.orientation.x = GOAL['orientation']['x']
+            delivery_goal.target_pose.pose.orientation.y = GOAL['orientation']['y']
+            delivery_goal.target_pose.pose.orientation.z = GOAL['orientation']['z']
+            delivery_goal.target_pose.pose.orientation.w = GOAL['orientation']['w']
+
+            rospy.loginfo(f"Sending navigation delivery_goal {delivery_goal.target_pose.pose}!")
+            goal_status = self.client.send_goal_and_wait(delivery_goal, execute_timeout=rospy.Duration(60))
+
+            if goal_status == GoalStatus.SUCCEEDED:
+                rospy.loginfo("DONE navigating to COUCH!")
+                self.mode = 'place'
+                if self.nav_couch_time is None: 
+                    self.nav_couch_time = time.time() - self.start_time
+            self.record_times()
+
+        elif self.mode == 'place':
+
+            # extend arm
+            self.move_joints({"wrist_extension": WRIST_EXTENSTION_REACH})
+
+            # lower joint lift to couch
+            self.move_joints({'joint_lift': COUCH_LIFT})
+
+            # wrist down
+            self.move_joints({'joint_wrist_pitch': WRIST_PITCH_DOWN})
+
+            # open gripper
+            self.move_joints({"gripper_aperture": GRIPPER_APERTURE_OPEN})
+
+            # joint lift to 1.09
+            self.move_joints({'joint_lift': MAX_LIFT})
+
+            # retract arm
+            self.move_joints({'wrist_extension': WRIST_EXTENSTION_RETRACT})
+
+            self.mode = "go_home"
+            if self.place_basket_time is None: 
+                self.place_basket_time = time.time() - self.start_time
+            self.record_times()
+            
+        elif self.mode == 'go_home':
+
+            delivery_goal = MoveBaseGoal()
+            delivery_goal.target_pose.header.frame_id = 'map'
+            delivery_goal.target_pose.header.stamp = rospy.Time.now()
+            
+            delivery_goal.target_pose.pose.position = Point(self.init_translation[0], self.init_translation[1], 0)
+            delivery_goal.target_pose.pose.orientation.x = self.init_orientation[0]
+            delivery_goal.target_pose.pose.orientation.y = self.init_orientation[1]
+            delivery_goal.target_pose.pose.orientation.z = self.init_orientation[2]
+            delivery_goal.target_pose.pose.orientation.w = self.init_orientation[3]
+
+            rospy.loginfo(f"Sending navigation go_home {delivery_goal.target_pose.pose}!")
+            goal_status = self.client.send_goal_and_wait(delivery_goal, execute_timeout=rospy.Duration(60))
+            if goal_status == GoalStatus.SUCCEEDED:
+                rospy.loginfo("DONE navigating to HOME!")
+                if self.nav_home_time is None: 
+                    self.nav_home_time = time.time() - self.start_time   
+                self.record_times()
+                exit(0)
+
+        self.record_times()
+
 
     def main(self):
         rospy.init_node('ArucoNavigation', anonymous=True)
