@@ -352,9 +352,10 @@ class ArucoNavigation(hm.HelloNode):
                 if self.nav_home_time is None: 
                     self.nav_home_time = time.time() - self.start_time   
                 self.record_times()
-                exit(0)
+                self.mode = "done"
 
         self.record_times()
+        exit(0)
 
 
     def main(self):
