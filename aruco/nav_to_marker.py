@@ -121,7 +121,7 @@ class ArucoNavigation(hm.HelloNode):
     def move_joints(self, pose):
         print(f"Moving to pose: {pose}")
         self.move_to_pose(pose, return_before_done=False)
-        time.sleep(2)
+        time.sleep(0.5)
 
     def record_times(self):
         times = {
@@ -135,6 +135,30 @@ class ArucoNavigation(hm.HelloNode):
         }
         with open(self.output_fname, 'w') as f:
             f.write(json.dumps(times, indent=2))
+
+    def record_distance_from_goal(self, file_suffix, reached_translation, reached_orientation, goal_translation, goal_orientation):
+        reached_x = reached_translation[0]
+        reached_y = reached_translation[1]
+        goal_x = round(goal_translation[0], 2)
+        goal_y = round(goal_translation[1], 2)
+
+        diff_x = abs(reached_x - goal_x)
+        diff_y = abs(reached_y - goal_y)
+
+        reached_z_angle = math.degrees(get_angles_from_quaternion(reached_orientation)[2])
+        goal_z_angle = math.degrees(get_angles_from_quaternion(goal_orientation)[2])
+        diff_d = abs(reached_z_angle - goal_z_angle)
+
+        diffs = {
+            "target_x": goal_x,
+            "error_x": diff_x,
+            "target_y": goal_y,
+            "error_y": diff_y,
+            "target_d": goal_z_angle,
+            "error_d": diff_d,
+        }
+        with open(self.output_fname + file_suffix, 'w') as f:
+            f.write(json.dumps(diffs, indent=2))
 
 
     def callback(self, goal):
@@ -213,17 +237,19 @@ class ArucoNavigation(hm.HelloNode):
                 rospy.loginfo(f"Sending navigation map_goal {map_goal.target_pose.pose}!")
                 goal_status = self.client.send_goal_and_wait(map_goal, execute_timeout=rospy.Duration(60))
 
-                if goal_status == GoalStatus.SUCCEEDED:    
+                if goal_status == GoalStatus.SUCCEEDED:
+                    reached_translation, reached_orientation = self.tf_listener.lookupTransform('map', 'base_link', rospy.Time(0))   
+                    self.record_distance_from_goal("_nav_errors_basket", reached_translation, reached_orientation, [goal_x, goal_y, 0], quat)
                     rospy.loginfo("DONE navigating to basket!")
                     if self.nav_basket_time is None: 
                         self.nav_basket_time = time.time() - self.start_time
                     self.mode = 'pick_up'
                 else:
-                    time.sleep(30)
+                    time.sleep(3)
 
             except Exception as e:
                 rospy.logerr(f"Error sending navigation map_goal {e}")
-                time.sleep(10)
+                time.sleep(3)
             self.record_times()
 
         elif self.mode == 'pick_up':
@@ -274,6 +300,9 @@ class ArucoNavigation(hm.HelloNode):
 
             if goal_status == GoalStatus.SUCCEEDED:
                 rospy.loginfo("DONE navigating to COUCH!")
+                reached_translation, reached_orientation = self.tf_listener.lookupTransform('map', 'base_link', rospy.Time(0))   
+                self.record_distance_from_goal("_nav_errors_couch", reached_translation, reached_orientation, [GOAL['position']['x'], GOAL['position']['y'], 0], 
+                                               [GOAL['orientation']['x'], GOAL['orientation']['y'], GOAL['orientation']['z'], GOAL['orientation']['w']])
                 self.mode = 'place'
                 if self.nav_couch_time is None: 
                     self.nav_couch_time = time.time() - self.start_time

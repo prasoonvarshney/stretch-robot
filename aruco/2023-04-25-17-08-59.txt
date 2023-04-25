@@ -1,0 +1,9 @@
+{
+  "start": 1682456939.4967396,
+  "found_basket": 10.06269645690918,
+  "nav_basket": null,
+  "pickup_basket": null,
+  "nav_couch": null,
+  "place_basket": null,
+  "nav_home": null
+}
